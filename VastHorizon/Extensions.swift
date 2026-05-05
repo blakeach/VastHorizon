@@ -1,26 +1,41 @@
-// Extensions to format hex strings, and hide keyboard function
+// Extensions.swift
 
 import SwiftUI
 
-// Allows SwiftUI color to use Hex Strings
 extension Color {
     init(hex: String) {
-        let scanner = Scanner(string: hex)
         var rgb: UInt64 = 0
-        scanner.scanHexInt64(&rgb)
-        
-// Turns them into RGB
-        let r = Double((rgb >> 16) & 0xFF) / 255
-        let g = Double((rgb >> 8) & 0xFF) / 255
-        let b = Double(rgb & 0xFF) / 255
-        
-        self.init(red: r, green: g, blue: b)
+        Scanner(string: hex).scanHexInt64(&rgb)
+        self.init(
+            red:   Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >>  8) & 0xFF) / 255,
+            blue:  Double( rgb        & 0xFF) / 255
+        )
     }
 }
 
-// Hide keyboard function
 extension View {
     func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil
+        )
+    }
+}
+
+extension Double {
+    var currency: String { CurrencyFormatter.format(self) }
+}
+
+extension Date {
+    /// Returns true if self and other fall on the same calendar day.
+    func isSameDay(as other: Date) -> Bool {
+        Calendar.current.isDate(self, inSameDayAs: other)
+    }
+
+    /// Number of full days between self and other (absolute value).
+    func daysDifference(from other: Date) -> Int {
+        let comps = Calendar.current.dateComponents([.day], from: other, to: self)
+        return abs(comps.day ?? 0)
     }
 }
