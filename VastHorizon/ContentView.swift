@@ -1,103 +1,148 @@
-// The UI when the user opens the app
+// ContentView.swift
+// Main dashboard — pure UI layer, delegates all logic to AccountViewModel.
 
 import SwiftUI
 
-#Preview {
-    ContentView()
-}
-
 struct ContentView: View {
-    // Tracks input for balance, amount
-    @State private var balance: Double = 0.0
-    @State private var balanceInput: String = ""
-    @State private var amountInput: String = ""
-    
-    // Tracks history
-    @State private var purchaseHistory: [Transaction] = []
-    @State private var selectedAction: BankAction? = nil
 
-    // Setting the states of variables when opening the app
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
-    @State private var showingHistory = false
-    @State private var isBalanceSet = false
-    
-    // Stores fee input (12.99 is the placeholder)
-    @AppStorage("savedMonthlyFee") private var savedMonthlyFee: Double = 12.99
-    @State private var customFeeInput: String = ""
+    // MARK: - ViewModel
+
+    @State private var vm = AccountViewModel()
+
+    // MARK: - Local UI state (ephemeral text field strings only)
+
+    @State private var balanceInput    = ""
+    @State private var amountInput     = ""
+    @State private var customFeeInput  = ""
+
+    // MARK: - Body
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Home background
                 Color(hex: "04203E").ignoresSafeArea()
-                
+
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        
-                        // Dashboard components
+                    VStack(spacing: 20) {
                         headerSection
+                        xpSection
                         balanceCard
-                        
-                        // Only displays input field if action is chosen
-                        if selectedAction != nil {
-                            transactionInputArea
-                        }
-                      
-                        // Buttons
+                        if vm.selectedAction != nil { transactionInputArea }
                         actionGrid
-                        
-                        // Only displays history if there is data stored
-                        if !purchaseHistory.isEmpty {
-                            recentActivitySection
-                        }
+                        if !vm.transactions.isEmpty { recentActivitySection }
                     }
                     .padding(.bottom, 30)
                 }
+
+                // Overlays (level-up, badge unlock) sit above everything.
+                if vm.showingLevelUp {
+                    LevelUpOverlay(message: vm.levelUpMessage) {
+                        withAnimation { vm.showingLevelUp = false }
+                    }
+                    .zIndex(10)
+                }
+
+                if vm.showingNewBadge, let badge = vm.newBadge {
+                    NewBadgeOverlay(badge: badge) {
+                        withAnimation { vm.showingNewBadge = false }
+                    }
+                    .zIndex(9)
+                }
             }
             .navigationBarHidden(true)
-            .onTapGesture {
-                hideKeyboard()
-            }
+            .onTapGesture { hideKeyboard() }
         }
-        // Sets app to dark mode
         .preferredColorScheme(.dark)
-        
-        // UI sheet for transaction history
-        .sheet(isPresented: $showingHistory) {
-            HistoryView(transactions: purchaseHistory)
+        .sheet(isPresented: $vm.showingHistory) {
+            HistoryView(transactions: vm.transactions)
         }
-     
-        // Alert handler for confirming all actions or returning errors
-        .alert("Bank Update", isPresented: $showingAlert) {
-            Button("Ok!", role: .cancel) { }
+        .sheet(isPresented: $vm.showingBadges) {
+            BadgesView(profile: vm.profile)
+        }
+        .alert("Bank Update", isPresented: $vm.showingAlert) {
+            Button("OK", role: .cancel) {}
         } message: {
-            Text(alertMessage)
+            Text(vm.alertMessage)
         }
     }
-    
-    // Headers for "VastHorizon Bank" and "Personal Account"
+
+    // MARK: - Header
+
     private var headerSection: some View {
-        VStack(spacing: 4) {
-            Text("VASTHORIZON BANK").font(.caption.bold().monospaced()).tracking(4).foregroundColor(.red)
-            Text("Personal Account").font(.title2.bold()).foregroundColor(.white)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("VASTHORIZON BANK")
+                    .font(.caption.bold().monospaced())
+                    .tracking(4)
+                    .foregroundColor(.red)
+                Text("Personal Account")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+            }
+            Spacer()
+            StreakChip(streak: vm.profile.currentStreak)
         }
+        .padding(.horizontal)
         .padding(.top, 21)
     }
 
-    // The field for setting up user's balance
+    // MARK: - XP Bar
+
+    private var xpSection: some View {
+        VStack(spacing: 12) {
+            XPBar(profile: vm.profile)
+
+            // Badges shortcut row — shows first 4 earned badges as small icons.
+            if !vm.profile.earnedBadges.isEmpty {
+                HStack(spacing: 8) {
+                    Text("BADGES")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.gray)
+                        .tracking(2)
+
+                    ForEach(vm.profile.earnedBadges.prefix(4)) { badge in
+                        Image(systemName: badge.icon)
+                            .font(.system(size: 14))
+                            .foregroundColor(badge.color)
+                    }
+
+                    if vm.profile.earnedBadges.count > 4 {
+                        Text("+\(vm.profile.earnedBadges.count - 4)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.gray)
+                    }
+
+                    Spacer()
+
+                    Button("View all") { vm.showingBadges = true }
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color(hex: "F39C12"))
+                }
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.04)))
+        .padding(.horizontal)
+    }
+
+    // MARK: - Balance Card
+
     private var balanceCard: some View {
         VStack(spacing: 12) {
-            // Label
-            Text("AVAILABLE BALANCE").font(.caption2.bold()).foregroundColor(.gray)
-          
-            // Balance Display
-            Text(formatCurrency(balance))
-                .font(.system(size: 44, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-    
-            // Logic if balance is not set
-            if !isBalanceSet {
+            Text("AVAILABLE BALANCE")
+                .font(.caption2.bold())
+                .foregroundColor(.gray)
+
+            ZStack {
+                BalanceMeter(balance: vm.balance)
+                Text(vm.balance.currency)
+                    .font(.system(size: 34, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+
+            if !vm.isBalanceSet {
                 HStack {
                     TextField("0.00", text: $balanceInput)
                         .keyboardType(.decimalPad)
@@ -106,9 +151,11 @@ struct ContentView: View {
                         .padding(10)
                         .background(Color.white.opacity(0.1))
                         .cornerRadius(8)
-                    
+
                     Button("Set") {
-                        setInitialBalance()
+                        vm.setInitialBalance(balanceInput)
+                        balanceInput = ""
+                        hideKeyboard()
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -120,7 +167,8 @@ struct ContentView: View {
         .padding(.horizontal)
     }
 
-    // Field for Depositing or Withdrawing
+    // MARK: - Transaction Input
+
     private var transactionInputArea: some View {
         VStack(spacing: 15) {
             TextField("Amount", text: $amountInput)
@@ -129,143 +177,98 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .padding()
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.1)))
-            
+
             HStack {
-                Button("Cancel") { selectedAction = nil; amountInput = "" }
-                    .foregroundColor(.gray)
+                Button("Cancel") {
+                    vm.selectedAction = nil
+                    amountInput = ""
+                }
+                .foregroundColor(.gray)
+
                 Spacer()
-                Button("Confirm Transaction") { processTransaction() }
-                    .fontWeight(.bold)
-                    .foregroundColor(selectedAction == .add ? .green : .red)
+
+                Button("Confirm Transaction") {
+                    vm.processTransaction(amountInput: amountInput)
+                    amountInput = ""
+                    hideKeyboard()
+                }
+                .fontWeight(.bold)
+                .foregroundColor(vm.selectedAction == .add ? .green : .red)
             }
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.03)))
         .padding(.horizontal)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
-    
-    // Grid of buttons for main actions
+
+    // MARK: - Action Grid
+
     private var actionGrid: some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                // Deposit Button
-                ActionButton(title: "Deposit", color: .green, isSelected: selectedAction == .add) {
-                    selectedAction = .add
+                ActionButton(title: "Deposit", color: .green, isSelected: vm.selectedAction == .add) {
+                    withAnimation { vm.selectedAction = .add }
                 }
-                // Withdraw Button
-                ActionButton(title: "Withdraw", color: .red, isSelected: selectedAction == .withdraw) {
-                    selectedAction = .withdraw
+                ActionButton(title: "Withdraw", color: .red, isSelected: vm.selectedAction == .withdraw) {
+                    withAnimation { vm.selectedAction = .withdraw }
                 }
             }
-            
+
             HStack(spacing: 12) {
-                // Input field for monthly fee
-                TextField("\(formatCurrency(savedMonthlyFee))", text: $customFeeInput)
+                TextField(vm.savedMonthlyFee.currency, text: $customFeeInput)
                     .keyboardType(.decimalPad)
                     .textFieldStyle(.plain)
                     .padding(12)
                     .background(Color.white.opacity(0.1))
                     .cornerRadius(10)
-                
-                // Pay Fee button
+
                 ActionButton(title: "Pay Fee", color: .orange, isSelected: false) {
-                    applyFee()
+                    vm.applyFee(customFeeInput)
+                    customFeeInput = ""
+                    hideKeyboard()
                 }
             }
 
-            // History button
-            ActionButton(title: "History", color: .purple, isSelected: false) {
-                showingHistory = true
+            HStack(spacing: 12) {
+                ActionButton(title: "History", color: .purple, isSelected: false) {
+                    vm.showingHistory = true
+                }
+                ActionButton(title: "Badges", color: Color(hex: "F39C12"), isSelected: false) {
+                    vm.showingBadges = true
+                }
             }
         }
         .padding(.horizontal)
     }
 
-    // The list of recent activity of actions
+    // MARK: - Recent Activity
+
     private var recentActivitySection: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("RECENT ACTIVITY")
                 .font(.caption.bold())
                 .foregroundColor(.gray)
-            
-            // .suffix(3) Take last 3 transactions in array
-            // .reversed() newest action appears at the top
-            ForEach(purchaseHistory.suffix(3).reversed()) { TransactionRow(transaction: $0) }
+
+            ForEach(vm.recentTransactions) { transaction in
+                TransactionRow(transaction: transaction)
+            }
+
+            if vm.transactions.count > 3 {
+                Button("View all \(vm.transactions.count) transactions →") {
+                    vm.showingHistory = true
+                }
+                .font(.caption)
+                .foregroundColor(.gray)
+            }
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.03)))
         .padding(.horizontal)
     }
+}
 
-    // LOGIC
-    
-    // Sets inputted balance
-    func setInitialBalance() {
-        if let val = Double(balanceInput) {
-            balance = val
-            isBalanceSet = true
-            hideKeyboard()
-        }
-    }
-
-    // Deposit and withdrawal handler
-    func processTransaction() {
-      
-        // Makes sure input is a valid number
-        guard let amt = Double(amountInput), amt > 0 else { return }
-        
-        // Deposit Handler
-        if selectedAction == .add {
-            balance += amt
-            purchaseHistory.append(Transaction(type: .deposit, amount: amt))
-            alertMessage = "Deposited \(formatCurrency(amt))"
-            
-        // Withdraw Handler
-        } else {
-            if amt <= balance {
-                balance -= amt
-                purchaseHistory.append(Transaction(type: .withdrawal, amount: amt))
-                alertMessage = "Withdrew \(formatCurrency(amt))"
-            } else {
-                alertMessage = "Insufficient funds!"
-            }
-        }
-        selectedAction = nil
-        amountInput = ""
-        showingAlert = true
-        hideKeyboard()
-    }
-
-    // Saves fee to memory
-    func applyFee() {
-        let feeToApply: Double
-        
-        if let newFee = Double(customFeeInput), newFee > 0 {
-            // Update the permanent storage
-            savedMonthlyFee = newFee
-            feeToApply = newFee
-        } else {
-            // Use whatever was previously saved
-            feeToApply = savedMonthlyFee
-        }
-
-        // Only fee withdraw if user can afford, and is a valid number
-        if balance >= feeToApply {
-            balance -= feeToApply
-            purchaseHistory.append(Transaction(type: .fee, amount: feeToApply))
-            alertMessage = "Fee of \(formatCurrency(feeToApply)) applied."
-            customFeeInput = ""
-            hideKeyboard()
-        } else {
-            alertMessage = "Not enough money for the fee."
-        }
-        showingAlert = true
-    }
-
-    // Converts double (input) to string for the UI (ex: 12.5 -> 12.50)
-    func formatCurrency(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        return formatter.string(from: NSNumber(value: value)) ?? "$0.00"
-    }
+// MARK: - Preview
+#Preview {
+    ContentView()
 }
