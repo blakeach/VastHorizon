@@ -34,10 +34,6 @@ VastHorizon/
 
 **`@Observable` ViewModel** — All state and logic lives in `AccountViewModel`. `ContentView` only holds ephemeral text field strings and delegates everything else to `vm`.
 
-**Badge queue** — Multiple badges earned in a single transaction are shown sequentially via a `pendingBadges` array, preventing overlapping overlays.
-
-**`BalanceMeter`** — A custom 270° arc component that sweeps from red to green as balance grows toward a $10,000 ceiling. Animates with `spring` on every balance change.
-
 ---
 
 ## Requirements
