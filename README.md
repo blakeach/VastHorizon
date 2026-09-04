@@ -12,23 +12,6 @@ A personal finance iOS app built with SwiftUI that gamifies saving money through
 - Apply a monthly fee 
 - Full transaction history with total in / total out summary
 
-### RPG Progression
-- **XP System** — earn 1 XP per dollar deposited
-- **Leveling** — every 100 XP advances your level; level-up overlay fires on threshold
-- **Streak Tracking** — days without a withdrawal build your streak; any withdrawal resets it to zero
-- **7 Badges** to unlock across saving milestones, streak goals, and level thresholds
-
-### Badges
-| Badge | Condition |
-|---|---|
-| ⭐ First Deposit | Make your first deposit |
-| 🔥 Iron Discipline | 7-day no-withdrawal streak |
-| 🛡️ Emergency Fund | Reach a $1,000 balance |
-| ⚡ Rising Saver | Reach Level 5 |
-| 👑 Wealth Builder | Reach Level 10 |
-| 🏅 Centurion | Deposit $1,000 in total |
-| 🔒 Iron Will | 30-day no-withdrawal streak |
-
 ---
 
 ## Architecture
