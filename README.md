@@ -1,7 +1,6 @@
 # VastHorizon Bank 🏦
 
-A personal finance iOS app built with SwiftUI that gamifies saving money through an RPG-style progression system. Earn XP for every dollar you save, level up, maintain streaks, and unlock achievement badges.
-
+A personal finance iOS app built with SwiftUI that is able to track your budget. 
 ---
 
 ## Features
